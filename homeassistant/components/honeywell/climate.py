@@ -74,18 +74,21 @@ PARALLEL_UPDATES = 1
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Honeywell thermostat."""
-    cool_away_temp = entry.options.get(CONF_COOL_AWAY_TEMPERATURE)
-    heat_away_temp = entry.options.get(CONF_HEAT_AWAY_TEMPERATURE)
+    cool_away_temp = config_entry.options.get(CONF_COOL_AWAY_TEMPERATURE)
+    heat_away_temp = config_entry.options.get(CONF_HEAT_AWAY_TEMPERATURE)
 
-    data = hass.data[DOMAIN][entry.entry_id]
+    honeywell_api = hass.data[DOMAIN][config_entry.entry_id]
 
     async_add_entities(
         [
-            HoneywellUSThermostat(data, device, cool_away_temp, heat_away_temp)
-            for device in data.devices.values()
+            HoneywellUSThermostat(hass, device, cool_away_temp, heat_away_temp)
+            for location in honeywell_api.locations_by_id.values()
+            for device in location.devices_by_id.values()
         ]
     )
 
@@ -93,9 +96,9 @@ async def async_setup_entry(
 class HoneywellUSThermostat(ClimateEntity):
     """Representation of a Honeywell US Thermostat."""
 
-    def __init__(self, data, device, cool_away_temp, heat_away_temp):
+    def __init__(self, hass, device, cool_away_temp, heat_away_temp):
         """Initialize the thermostat."""
-        self._data = data
+        self._hass = hass
         self._device = device
         self._cool_away_temp = cool_away_temp
         self._heat_away_temp = heat_away_temp
@@ -252,7 +255,7 @@ class HoneywellUSThermostat(ClimateEntity):
         except somecomfort.SomeComfortError:
             _LOGGER.error("Temperature %.1f out of range", temperature)
 
-    def set_temperature(self, **kwargs) -> None:
+    def set_temperature(self, **kwargs: Any) -> None:
         """Set new target temperature."""
         if {HVACMode.COOL, HVACMode.HEAT} & set(self._hvac_mode_map):
             self._set_temperature(**kwargs)
@@ -352,6 +355,6 @@ class HoneywellUSThermostat(ClimateEntity):
         else:
             self.set_hvac_mode(HVACMode.OFF)
 
-    async def async_update(self):
+    async def async_update(self) -> None:
         """Get the latest state from the service."""
-        await self._data.async_update()
+        await self._hass.async_add_executor_job(self._device.refresh)
