@@ -1,4 +1,8 @@
 """Tests for button platform."""
+from unittest.mock import patch
+
+import pytest
+
 from homeassistant.components import lifx
 from homeassistant.components.button import DOMAIN as BUTTON_DOMAIN
 from homeassistant.components.lifx.const import DOMAIN
@@ -19,6 +23,13 @@ from . import (
 )
 
 from tests.common import MockConfigEntry
+
+
+@pytest.fixture(autouse=True)
+def mock_lifx_coordinator_sleep():
+    """Mock out lifx coordinator sleeps."""
+    with patch("homeassistant.components.lifx.coordinator.LIFX_IDENTIFY_DELAY", 0):
+        yield
 
 
 async def test_button_restart(hass: HomeAssistant) -> None:
@@ -43,17 +54,8 @@ async def test_button_restart(hass: HomeAssistant) -> None:
     entity_registry = er.async_get(hass)
     entity = entity_registry.async_get(entity_id)
     assert entity
-    assert entity.disabled
+    assert not entity.disabled
     assert entity.unique_id == unique_id
-
-    enabled_entity = entity_registry.async_update_entity(entity_id, disabled_by=None)
-    assert not enabled_entity.disabled
-
-    with _patch_discovery(device=bulb), _patch_config_flow_try_connect(
-        device=bulb
-    ), _patch_device(device=bulb):
-        await hass.config_entries.async_reload(config_entry.entry_id)
-        await hass.async_block_till_done()
 
     await hass.services.async_call(
         BUTTON_DOMAIN, "press", {ATTR_ENTITY_ID: entity_id}, blocking=True
@@ -84,17 +86,8 @@ async def test_button_identify(hass: HomeAssistant) -> None:
     entity_registry = er.async_get(hass)
     entity = entity_registry.async_get(entity_id)
     assert entity
-    assert entity.disabled
+    assert not entity.disabled
     assert entity.unique_id == unique_id
-
-    enabled_entity = entity_registry.async_update_entity(entity_id, disabled_by=None)
-    assert not enabled_entity.disabled
-
-    with _patch_discovery(device=bulb), _patch_config_flow_try_connect(
-        device=bulb
-    ), _patch_device(device=bulb):
-        await hass.config_entries.async_reload(config_entry.entry_id)
-        await hass.async_block_till_done()
 
     await hass.services.async_call(
         BUTTON_DOMAIN, "press", {ATTR_ENTITY_ID: entity_id}, blocking=True
